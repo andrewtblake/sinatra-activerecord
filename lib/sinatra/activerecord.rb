@@ -30,7 +30,7 @@ module Sinatra
         else
           url_spec = ActiveRecord::ConnectionAdapters::ConnectionSpecification::ConnectionUrlResolver.new(url).to_hash
         end
-        
+
         # url_spec will override the same key, if exist
         final_spec = file_spec.keys.map{ |env| [env, file_spec[env].merge(url_spec)] }.to_h
 
@@ -53,16 +53,23 @@ module Sinatra
     end
 
     def database_file=(path)
+      puts "path = #{path}, root = #{root}"
       path = File.join(root, path) if Pathname(path).relative? and root
-      spec = YAML.load(ERB.new(File.read(path)).result) || {}
+      puts "new path = #{path}"
+      spec = YAML.load(ERB.new(File.read(path)).result)
+      puts "spec is"
+      pp spec
+      spec ||= {}
       set :database, spec
     end
 
     def database=(spec)
+      pp spec
+      puts "environment is: #{environment.inspect}"
       if spec.is_a?(Hash) and spec.symbolize_keys[environment.to_sym]
         ActiveRecord::Base.configurations = spec.stringify_keys
         ActiveRecord::Base.establish_connection(environment.to_sym)
-      elsif spec.is_a?(Hash)     
+      elsif spec.is_a?(Hash)
         ActiveRecord::Base.configurations = {
           environment.to_s => spec.stringify_keys
         }
