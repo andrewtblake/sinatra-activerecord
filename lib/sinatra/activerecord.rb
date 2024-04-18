@@ -31,7 +31,7 @@ module Sinatra
         else
           url_spec = ActiveRecord::ConnectionAdapters::ConnectionSpecification::ConnectionUrlResolver.new(url).to_hash
         end
-        
+
         # if the configuration concerns only one database, and url_spec exist, url_spec will override the same key
         # if the configuration has multiple databases (Rails 6.0+ feature), url_spec is discarded
         # Following Active Record config convention
@@ -68,7 +68,7 @@ module Sinatra
         if ActiveRecord::VERSION::MAJOR < 7
           ActiveRecord::Base.clear_active_connections!
         else
-          ActiveRecord::Base.connection_handler.clear_active_connections!
+          ActiveRecord::Base.connection_handler.clear_active_connections!(:writing)
         end
       end
     end
