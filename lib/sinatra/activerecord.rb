@@ -74,7 +74,6 @@ module Sinatra
     end
 
     def database_file=(path)
-      puts "path = #{path}, root = #{root}"
       path = File.join(root, path) if Pathname(path).relative? and root
       source = ERB.new(File.read(path)).result
       spec = YAML.respond_to?(:unsafe_load) ? YAML.unsafe_load(source) : YAML.load(source)
