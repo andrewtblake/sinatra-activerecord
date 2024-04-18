@@ -21,8 +21,9 @@ module Sinatra
       if ENV['DATABASE_URL'] && File.exist?("#{Dir.pwd}/config/database.yml")
         path = "#{Dir.pwd}/config/database.yml"
         url = ENV['DATABASE_URL']
-        file_path = File.join(root, path) if Pathname(path).relative? and root
-        file_spec = YAML.load(ERB.new(File.read(path)).result) || {}
+        source = ERB.new(File.read(path)).result
+        file_spec = YAML.respond_to?(:unsafe_load) ? YAML.unsafe_load(source) : YAML.load(source)
+        file_spec ||= {}
 
         # ActiveRecord 6.1+ has moved the connection url resolver to another module
         if Gem.loaded_specs["activerecord"].version >= Gem::Version.create('6.1')
@@ -30,9 +31,19 @@ module Sinatra
         else
           url_spec = ActiveRecord::ConnectionAdapters::ConnectionSpecification::ConnectionUrlResolver.new(url).to_hash
         end
-
-        # url_spec will override the same key, if exist
-        final_spec = file_spec.keys.map{ |env| [env, file_spec[env].merge(url_spec)] }.to_h
+        
+        # if the configuration concerns only one database, and url_spec exist, url_spec will override the same key
+        # if the configuration has multiple databases (Rails 6.0+ feature), url_spec is discarded
+        # Following Active Record config convention
+        # https://github.com/rails/rails/blob/main/activerecord/lib/active_record/database_configurations.rb#L169
+        final_spec = file_spec.keys.map do |env|
+          config = file_spec[env]
+          if config.is_a?(Hash) && config.all? { |_k, v| v.is_a?(Hash) }
+            [env, config]
+          else
+            [env, config.merge(url_spec)]
+          end
+        end.to_h
 
         app.set :database, final_spec
       elsif ENV['DATABASE_URL']
@@ -48,17 +59,25 @@ module Sinatra
       app.helpers ActiveRecordHelper
 
       # re-connect if database connection dropped (Rails 3 only)
-      app.before { ActiveRecord::Base.verify_active_connections! if ActiveRecord::Base.respond_to?(:verify_active_connections!) }
-      app.after { ActiveRecord::Base.clear_active_connections! }
+      app.before do
+        if ActiveRecord::VERSION::MAJOR == 3
+          ActiveRecord::Base.verify_active_connections! if ActiveRecord::Base.respond_to?(:verify_active_connections!)
+        end
+      end
+      app.after do
+        if ActiveRecord::VERSION::MAJOR < 7
+          ActiveRecord::Base.clear_active_connections!
+        else
+          ActiveRecord::Base.connection_handler.clear_active_connections!
+        end
+      end
     end
 
     def database_file=(path)
       puts "path = #{path}, root = #{root}"
       path = File.join(root, path) if Pathname(path).relative? and root
-      puts "new path = #{path}"
-      spec = YAML.load(ERB.new(File.read(path)).result)
-      puts "spec is"
-      pp spec
+      source = ERB.new(File.read(path)).result
+      spec = YAML.respond_to?(:unsafe_load) ? YAML.unsafe_load(source) : YAML.load(source)
       spec ||= {}
       set :database, spec
     end
