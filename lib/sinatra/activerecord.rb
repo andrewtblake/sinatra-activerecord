@@ -82,8 +82,6 @@ module Sinatra
     end
 
     def database=(spec)
-      pp spec
-      puts "environment is: #{environment.inspect}"
       if spec.is_a?(Hash) and spec.symbolize_keys[environment.to_sym]
         ActiveRecord::Base.configurations = spec.stringify_keys
         ActiveRecord::Base.establish_connection(environment.to_sym)
